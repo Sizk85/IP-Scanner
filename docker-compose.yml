@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  ip-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ip-scanner-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      # Mount data directory to persist IP list
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/ips"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ip-scanner-network
+
+networks:
+  ip-scanner-network:
+    driver: bridge

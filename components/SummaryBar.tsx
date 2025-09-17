@@ -1,0 +1,288 @@
+"use client"
+
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { useIpScannerStore, useSummaryStats, useFilteredIpList } from '@/lib/store'
+import { useToast } from '@/components/ui/use-toast'
+import { useState } from 'react'
+import { 
+  Wifi, 
+  WifiOff, 
+  Clock, 
+  RotateCcw, 
+  Download, 
+  Upload,
+  Search,
+  Filter
+} from 'lucide-react'
+
+export default function SummaryBar() {
+  const [isScanning, setIsScanning] = useState(false)
+  const [isClearingResults, setIsClearingResults] = useState(false)
+  const stats = useSummaryStats()
+  const filteredIpList = useFilteredIpList()
+  const { 
+    statusFilter, 
+    searchQuery, 
+    setStatusFilter, 
+    setSearchQuery, 
+    setIpList,
+    updateIpRecord 
+  } = useIpScannerStore()
+  const { toast } = useToast()
+
+  const handleScanAll = async () => {
+    if (filteredIpList.length === 0) {
+      toast({
+        title: "ไม่มีข้อมูล",
+        description: "ไม่มี IP ในรายการที่จะสแกน",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsScanning(true)
+    
+    try {
+      const ips = filteredIpList.map(record => record.ip)
+      
+      // เรียก bulk ping API
+      const response = await fetch('/api/ping/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ips })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // อัปเดตผลลัพธ์ใน store และไฟล์
+        for (const pingResult of result.data) {
+          updateIpRecord(pingResult.ip, {
+            lastStatus: pingResult.status,
+            lastLatencyMs: pingResult.latencyMs,
+            updatedAt: new Date().toISOString()
+          })
+          
+          // อัปเดตใน database ด้วย
+          await fetch('/api/ips', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ip: pingResult.ip,
+              lastStatus: pingResult.status,
+              lastLatencyMs: pingResult.latencyMs
+            })
+          })
+        }
+
+        toast({
+          title: "สำเร็จ",
+          description: `สแกนเสร็จสิ้น ${result.data.length} IP`
+        })
+      } else {
+        toast({
+          title: "ข้อผิดพลาด",
+          description: result.error || 'เกิดข้อผิดพลาดในการสแกน',
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error scanning:', error)
+      toast({
+        title: "ข้อผิดพลาด",
+        description: 'เกิดข้อผิดพลาดในการสแกน',
+        variant: "destructive"
+      })
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleClearResults = async () => {
+    setIsClearingResults(true)
+    
+    try {
+      // อัปเดตเฉพาะสถานะ ping ให้เป็น undefined
+      for (const record of filteredIpList) {
+        updateIpRecord(record.ip, {
+          lastStatus: undefined,
+          lastLatencyMs: undefined,
+          updatedAt: new Date().toISOString()
+        })
+        
+        // อัปเดตใน database ด้วย
+        await fetch('/api/ips', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ip: record.ip,
+            lastStatus: undefined,
+            lastLatencyMs: undefined
+          })
+        })
+      }
+
+      toast({
+        title: "สำเร็จ",
+        description: "เคลียร์ผลการสแกนแล้ว"
+      })
+    } catch (error) {
+      console.error('Error clearing results:', error)
+      toast({
+        title: "ข้อผิดพลาด",
+        description: 'เกิดข้อผิดพลาดในการเคลียร์ผล',
+        variant: "destructive"
+      })
+    } finally {
+      setIsClearingResults(false)
+    }
+  }
+
+  const handleExportCSV = () => {
+    const csvHeaders = ['ip', 'status', 'latencyMs', 'notes', 'updatedAt']
+    const csvData = filteredIpList.map(record => [
+      record.ip,
+      record.lastStatus || '',
+      record.lastLatencyMs || '',
+      record.notes || '',
+      record.updatedAt || ''
+    ])
+    
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `ip-scan-results-${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    
+    toast({
+      title: "สำเร็จ",
+      description: "ส่งออกไฟล์ CSV แล้ว"
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Stats */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            สรุปผลการสแกน
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-sm text-muted-foreground">ทั้งหมด</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{stats.online}</div>
+              <div className="text-sm text-muted-foreground">Online</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{stats.offline}</div>
+              <div className="text-sm text-muted-foreground">Offline</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">{stats.timeout}</div>
+              <div className="text-sm text-muted-foreground">Timeout</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-600">{stats.pending}</div>
+              <div className="text-sm text-muted-foreground">รอสแกน</div>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button 
+              onClick={handleScanAll} 
+              disabled={isScanning}
+              className="flex-1 sm:flex-none"
+            >
+              <Wifi className="mr-2 h-4 w-4" />
+              {isScanning ? 'กำลังสแกน...' : 'Scan All'}
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={handleClearResults}
+              disabled={isClearingResults}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Clear Results
+            </Button>
+            
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Filter and Search */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหา IP หรือ Notes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              {['all', 'online', 'offline', 'timeout'].map((filter) => (
+                <Badge
+                  key={filter}
+                  variant={statusFilter === filter ? 'default' : 'outline'}
+                  className="cursor-pointer px-3 py-1"
+                  onClick={() => setStatusFilter(filter as any)}
+                >
+                  {filter === 'all' ? 'ทั้งหมด' : 
+                   filter === 'online' ? 'Online' : 
+                   filter === 'offline' ? 'Offline' : 'Timeout'}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Current Subnet Info */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">IP Addresses:</span>
+              <Badge variant="secondary">ทุก Subnet</Badge>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              แสดง {stats.total} รายการ
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
