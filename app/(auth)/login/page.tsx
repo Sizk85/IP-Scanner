@@ -47,7 +47,9 @@ export default function LoginPage() {
         })
         
         // รีไดเรคไปหน้า scan
-        router.push('/scan')
+        setTimeout(() => {
+          window.location.replace('/scan')
+        }, 1500)
       } else {
         toast({
           title: "ข้อผิดพลาด",
