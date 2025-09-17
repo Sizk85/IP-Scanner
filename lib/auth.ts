@@ -6,9 +6,13 @@ const CORRECT_ACCESS_CODE = '1212312121.'
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 // 7 วัน
 
 export function setAuthCookie(response: NextResponse) {
+  const isSecure = process.env.NODE_ENV === 'production' && 
+                   (process.env.VERCEL_URL?.includes('https') || 
+                    process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true')
+  
   response.cookies.set(AUTH_COOKIE_NAME, 'authenticated', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     maxAge: COOKIE_MAX_AGE,
     path: '/'
