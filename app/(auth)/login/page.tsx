@@ -128,9 +128,6 @@ export default function LoginPage() {
             <div className="text-sm text-muted-foreground">
               เครื่องมือสแกนและตรวจสอบสถานะ IP Address
             </div>
-            <div className="text-xs text-muted-foreground mt-2">
-              Subnet: 185.241.210.0 - 185.241.210.255
-            </div>
           </div>
         </CardContent>
       </Card>
