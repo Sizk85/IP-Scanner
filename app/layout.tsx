@@ -12,10 +12,7 @@ export const metadata: Metadata = {
   title: 'IP Scanner',
   description: 'เครื่องมือสแกน IP Address และตรวจสอบสถานะ',
   icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
-      { url: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' }
-    ],
+    icon: '/favicon.svg',
     apple: '/favicon.svg',
   }
 }
