@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { useIpScannerStore } from '@/lib/store'
-import { LogOut, Wifi } from 'lucide-react'
+import { LogOut, Wifi, History } from 'lucide-react'
 import AddIpForm from '@/components/AddIpForm'
 import SummaryBar from '@/components/SummaryBar'
 import IpTable from '@/components/IpTable'
@@ -149,18 +149,29 @@ export default function ScanPage() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <Wifi className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">Realms IP Scanner</h1>
+              <h1 className="text-xl font-bold text-gray-900">IP Scanner</h1>
             </div>
             
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => router.push('/history')}
+                className="flex items-center gap-2"
+              >
+                <History className="h-4 w-4" />
+                ประวัติ
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
+              </Button>
+            </div>
           </div>
         </div>
       </header>

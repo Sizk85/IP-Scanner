@@ -249,6 +249,7 @@ export default function IpTable() {
             </TableHeader>
             <TableBody>
               {filteredIpList.map((record) => (
+                <>
                 <TableRow key={record.ip}>
                   <TableCell className="font-mono font-medium">
                     {record.ip}
@@ -384,6 +385,7 @@ export default function IpTable() {
                     </TableCell>
                   </TableRow>
                 )}
+              </>
               ))}
             </TableBody>
           </Table>
