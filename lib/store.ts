@@ -1,29 +1,45 @@
 import { create } from 'zustand'
 
+export interface ScanHistoryEntry {
+  timestamp: string
+  status: 'online' | 'offline'
+  latencyMs?: number
+}
+
 export interface IpRecord {
   ip: string
-  lastStatus?: 'online' | 'offline' | 'timeout'
+  lastStatus?: 'online' | 'offline'
   lastLatencyMs?: number
   notes?: string
   updatedAt?: string
+  scanHistory?: ScanHistoryEntry[]
 }
 
 export interface PingResult {
   ip: string
-  status: 'online' | 'offline' | 'timeout'
+  status: 'online' | 'offline'
   latencyMs?: number
+}
+
+export interface GlobalScanInfo {
+  lastScanTime?: string
+  nextScanTime?: string
+  totalScans?: number
 }
 
 interface IpScannerState {
   // ข้อมูล IP
   ipList: IpRecord[]
   
+  // ข้อมูลการสแกนรวม
+  scanInfo: GlobalScanInfo
+  
   // สถานะการสแกน
   isScanning: boolean
   scanningIps: Set<string>
   
   // การกรอง
-  statusFilter: 'all' | 'online' | 'offline' | 'timeout'
+  statusFilter: 'all' | 'online' | 'offline'
   searchQuery: string
   
   // Actions
@@ -31,17 +47,21 @@ interface IpScannerState {
   updateIpRecord: (ip: string, updates: Partial<IpRecord>) => void
   removeIpRecord: (ip: string) => void
   
+  // Scan info
+  setScanInfo: (info: GlobalScanInfo) => void
+  
   // Scanning
   setScanning: (isScanning: boolean) => void
   setScanningIp: (ip: string, isScanning: boolean) => void
   
   // Filtering
-  setStatusFilter: (filter: 'all' | 'online' | 'offline' | 'timeout') => void
+  setStatusFilter: (filter: 'all' | 'online' | 'offline') => void
   setSearchQuery: (query: string) => void
 }
 
 export const useIpScannerStore = create<IpScannerState>((set, get) => ({
   ipList: [],
+  scanInfo: {},
   isScanning: false,
   scanningIps: new Set(),
   statusFilter: 'all',
@@ -58,6 +78,8 @@ export const useIpScannerStore = create<IpScannerState>((set, get) => ({
   removeIpRecord: (ip) => set((state) => ({
     ipList: state.ipList.filter(record => record.ip !== ip)
   })),
+  
+  setScanInfo: (info) => set({ scanInfo: info }),
   
   setScanning: (isScanning) => set({ isScanning }),
   
@@ -105,7 +127,6 @@ export const useSummaryStats = () => {
     total: ipList.length,
     online: ipList.filter(ip => ip.lastStatus === 'online').length,
     offline: ipList.filter(ip => ip.lastStatus === 'offline').length,
-    timeout: ipList.filter(ip => ip.lastStatus === 'timeout').length,
     pending: ipList.filter(ip => !ip.lastStatus).length
   }
 }

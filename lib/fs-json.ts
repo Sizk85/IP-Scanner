@@ -3,13 +3,27 @@ import path from 'path'
 
 const DATA_DIR = path.join(process.cwd(), 'data')
 const IP_LIST_FILE = path.join(DATA_DIR, 'ip-list.json')
+const SCAN_INFO_FILE = path.join(DATA_DIR, 'scan-info.json')
+
+export interface ScanHistoryEntry {
+  timestamp: string
+  status: 'online' | 'offline'
+  latencyMs?: number
+}
 
 export interface IpRecord {
   ip: string
-  lastStatus?: 'online' | 'offline' | 'timeout'
+  lastStatus?: 'online' | 'offline'
   lastLatencyMs?: number
   notes?: string
   updatedAt?: string
+  scanHistory?: ScanHistoryEntry[]
+}
+
+export interface GlobalScanInfo {
+  lastScanTime?: string
+  nextScanTime?: string
+  totalScans?: number
 }
 
 let writeLock = false
@@ -88,4 +102,58 @@ export async function deleteIp(ip: string): Promise<IpRecord[]> {
   const filteredData = data.filter(item => item.ip !== ip)
   await writeIpList(filteredData)
   return filteredData
+}
+
+// Global scan info functions
+export async function readScanInfo(): Promise<GlobalScanInfo> {
+  try {
+    await ensureDataDir()
+    const data = await fs.readFile(SCAN_INFO_FILE, 'utf-8')
+    return JSON.parse(data) as GlobalScanInfo
+  } catch {
+    const defaultInfo: GlobalScanInfo = {
+      totalScans: 0
+    }
+    await writeScanInfo(defaultInfo)
+    return defaultInfo
+  }
+}
+
+export async function writeScanInfo(info: GlobalScanInfo): Promise<void> {
+  while (writeLock) {
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  
+  writeLock = true
+  try {
+    await ensureDataDir()
+    await fs.writeFile(SCAN_INFO_FILE, JSON.stringify(info, null, 2))
+  } finally {
+    writeLock = false
+  }
+}
+
+export async function addScanHistory(ip: string, status: 'online' | 'offline', latencyMs?: number): Promise<void> {
+  const data = await readIpList()
+  const index = data.findIndex(item => item.ip === ip)
+  
+  if (index !== -1) {
+    if (!data[index].scanHistory) {
+      data[index].scanHistory = []
+    }
+    
+    // เพิ่มประวัติใหม่
+    data[index].scanHistory.unshift({
+      timestamp: new Date().toISOString(),
+      status,
+      latencyMs
+    })
+    
+    // เก็บแค่ 50 รายการล่าสุด
+    if (data[index].scanHistory.length > 50) {
+      data[index].scanHistory = data[index].scanHistory.slice(0, 50)
+    }
+    
+    await writeIpList(data)
+  }
 }

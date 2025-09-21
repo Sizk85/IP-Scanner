@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
+import { addScanHistory } from '@/lib/fs-json'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
@@ -7,7 +8,7 @@ const execAsync = promisify(exec)
 
 interface PingResult {
   ip: string
-  status: 'online' | 'offline' | 'timeout'
+  status: 'online' | 'offline'
   latencyMs?: number
 }
 
@@ -57,8 +58,8 @@ async function pingIp(ip: string): Promise<PingResult> {
       return { ip, status: 'offline' }
     }
   } catch (error) {
-    // Timeout หรือ error อื่นๆ
-    return { ip, status: 'timeout' }
+    // Timeout หรือ error อื่นๆ รวมเป็น offline
+    return { ip, status: 'offline' }
   }
 }
 
@@ -87,6 +88,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await pingIp(ip)
+    
+    // บันทึกประวัติการสแกน
+    await addScanHistory(ip, result.status, result.latencyMs)
     
     return NextResponse.json({ 
       success: true, 

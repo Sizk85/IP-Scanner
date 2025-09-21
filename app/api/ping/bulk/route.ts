@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
+import { addScanHistory, readScanInfo, writeScanInfo } from '@/lib/fs-json'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
@@ -7,7 +8,7 @@ const execAsync = promisify(exec)
 
 interface PingResult {
   ip: string
-  status: 'online' | 'offline' | 'timeout'
+  status: 'online' | 'offline'
   latencyMs?: number
 }
 
@@ -60,8 +61,8 @@ async function pingIp(ip: string): Promise<PingResult> {
       return { ip, status: 'offline' }
     }
   } catch (error) {
-    // Timeout หรือ error อื่นๆ
-    return { ip, status: 'timeout' }
+    // Timeout หรือ error อื่นๆ รวมเป็น offline
+    return { ip, status: 'offline' }
   }
 }
 
@@ -123,6 +124,22 @@ export async function POST(request: NextRequest) {
     console.log(`Starting bulk ping for ${ips.length} IPs`)
     const results = await pingMultipleIps(ips)
     console.log(`Completed bulk ping for ${ips.length} IPs`)
+    
+    // บันทึกประวัติการสแกนทั้งหมด
+    for (const result of results) {
+      await addScanHistory(result.ip, result.status, result.latencyMs)
+    }
+    
+    // อัปเดตข้อมูลการสแกนรวม
+    const scanInfo = await readScanInfo()
+    const now = new Date()
+    const nextScan = new Date(now.getTime() + 10 * 60 * 1000) // +10 นาที
+    
+    await writeScanInfo({
+      lastScanTime: now.toISOString(),
+      nextScanTime: nextScan.toISOString(),
+      totalScans: (scanInfo.totalScans || 0) + 1
+    })
     
     return NextResponse.json({ 
       success: true, 
