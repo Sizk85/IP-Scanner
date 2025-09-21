@@ -24,7 +24,8 @@ import {
   Check, 
   X, 
   Loader2,
-  List
+  List,
+  History
 } from 'lucide-react'
 
 export default function IpTable() {
@@ -32,6 +33,7 @@ export default function IpTable() {
   const { updateIpRecord, removeIpRecord, scanningIps, setScanningIp } = useIpScannerStore()
   const [editingIp, setEditingIp] = useState<string | null>(null)
   const [editingNotes, setEditingNotes] = useState('')
+  const [showHistory, setShowHistory] = useState<string | null>(null)
   const { toast } = useToast()
 
   const getStatusBadge = (status?: string, latencyMs?: number) => {
@@ -48,13 +50,6 @@ export default function IpTable() {
           <Badge variant="error" className="flex items-center gap-1">
             <WifiOff className="h-3 w-3" />
             Offline
-          </Badge>
-        )
-      case 'timeout':
-        return (
-          <Badge variant="warning" className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            Timeout
           </Badge>
         )
       default:
@@ -246,8 +241,9 @@ export default function IpTable() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[150px]">IP Address</TableHead>
-                <TableHead className="w-[200px]">Status</TableHead>
+                <TableHead className="w-[180px]">Status</TableHead>
                 <TableHead>Notes</TableHead>
+                <TableHead className="w-[120px]">อัปเดตล่าสุด</TableHead>
                 <TableHead className="w-[150px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -307,6 +303,17 @@ export default function IpTable() {
                     )}
                   </TableCell>
                   
+                  <TableCell className="text-sm text-muted-foreground">
+                    {record.updatedAt 
+                      ? new Date(record.updatedAt).toLocaleTimeString('th-TH', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        })
+                      : '-'
+                    }
+                  </TableCell>
+                  
                   <TableCell className="text-right">
                     <div className="flex items-center gap-1 justify-end">
                       <Button
@@ -314,19 +321,69 @@ export default function IpTable() {
                         variant="outline"
                         onClick={() => handlePingSingle(record.ip)}
                         disabled={scanningIps.has(record.ip)}
+                        title="Ping IP"
                       >
                         <Wifi className="h-3 w-3" />
                       </Button>
+                      
+                      {record.scanHistory && record.scanHistory.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowHistory(showHistory === record.ip ? null : record.ip)}
+                          title="ดูประวัติการสแกน"
+                        >
+                          <History className="h-3 w-3" />
+                        </Button>
+                      )}
+                      
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleDeleteIp(record.ip)}
+                        title="ลบ IP"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
+                
+                {/* แสดงประวัติการสแกน */}
+                {showHistory === record.ip && record.scanHistory && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="bg-muted/50">
+                      <div className="p-4">
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                          <History className="h-4 w-4" />
+                          ประวัติการสแกน {record.ip}
+                        </h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {record.scanHistory.slice(0, 10).map((entry, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                {entry.status === 'online' ? (
+                                  <Wifi className="h-3 w-3 text-green-500" />
+                                ) : (
+                                  <WifiOff className="h-3 w-3 text-red-500" />
+                                )}
+                                <span className={entry.status === 'online' ? 'text-green-600' : 'text-red-600'}>
+                                  {entry.status === 'online' ? 'Online' : 'Offline'}
+                                </span>
+                                {entry.latencyMs && (
+                                  <span className="text-muted-foreground">({entry.latencyMs}ms)</span>
+                                )}
+                              </div>
+                              <span className="text-muted-foreground">
+                                {new Date(entry.timestamp).toLocaleString('th-TH')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
               ))}
             </TableBody>
           </Table>

@@ -17,31 +17,45 @@ export default function ScanPage() {
   const { toast } = useToast()
   const { setIpList } = useIpScannerStore()
 
-  // โหลดข้อมูล IP เมื่อเริ่มต้น
+  // โหลดข้อมูล IP และ scan info เมื่อเริ่มต้น
   useEffect(() => {
-    const loadIpData = async () => {
+    const loadData = async () => {
       try {
-        const response = await fetch('/api/ips')
+        // โหลดข้อมูล IP
+        const ipResponse = await fetch('/api/ips')
         
-        if (response.status === 401) {
-          // ไม่มีสิทธิ์ เด้งไปหน้า login
+        if (ipResponse.status === 401) {
           router.push('/login')
           return
         }
 
-        const result = await response.json()
+        const ipResult = await ipResponse.json()
         
-        if (result.success) {
-          setIpList(result.data)
-        } else {
-          toast({
-            title: "ข้อผิดพลาด",
-            description: result.error || 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
-            variant: "destructive"
-          })
+        if (ipResult.success) {
+          setIpList(ipResult.data)
         }
+
+        // โหลดข้อมูล scan info
+        const scanResponse = await fetch('/api/scan-info')
+        const scanResult = await scanResponse.json()
+        
+        if (scanResult.success) {
+          // ถ้ายังไม่เคยสแกน ให้ตั้งเวลาสแกนครั้งแรก
+          if (!scanResult.data.nextScanTime) {
+            const nextScan = new Date(Date.now() + 10 * 60 * 1000) // +10 นาที
+            await fetch('/api/scan-info', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nextScanTime: nextScan.toISOString(),
+                totalScans: 0
+              })
+            })
+          }
+        }
+        
       } catch (error) {
-        console.error('Error loading IP data:', error)
+        console.error('Error loading data:', error)
         toast({
           title: "ข้อผิดพลาด",
           description: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
@@ -52,7 +66,30 @@ export default function ScanPage() {
       }
     }
 
-    loadIpData()
+    loadData()
+
+    // Real-time data sync ทุก 30 วินาที
+    const syncInterval = setInterval(async () => {
+      try {
+        const [ipResponse, scanResponse] = await Promise.all([
+          fetch('/api/ips'),
+          fetch('/api/scan-info')
+        ])
+
+        const [ipResult, scanResult] = await Promise.all([
+          ipResponse.json(),
+          scanResponse.json()
+        ])
+
+        if (ipResult.success) {
+          setIpList(ipResult.data)
+        }
+      } catch (error) {
+        console.error('Error syncing data:', error)
+      }
+    }, 30000) // ทุก 30 วินาที
+
+    return () => clearInterval(syncInterval)
   }, [setIpList, toast, router])
 
   const handleLogout = async () => {
