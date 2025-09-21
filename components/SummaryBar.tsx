@@ -6,86 +6,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useIpScannerStore, useSummaryStats, useFilteredIpList } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
-import { useState, useEffect } from 'react'
 import { 
-  Wifi, 
   Download,
   Search,
   Filter
 } from 'lucide-react'
 
 export default function SummaryBar() {
-  const [isScanning, setIsScanning] = useState(false)
   const stats = useSummaryStats()
   const filteredIpList = useFilteredIpList()
   const { 
     statusFilter, 
     searchQuery, 
     setStatusFilter, 
-    setSearchQuery, 
-    setIpList,
-    updateIpRecord 
+    setSearchQuery
   } = useIpScannerStore()
   const { toast } = useToast()
 
-  // Background scanning ทุก 10 นาที
-  useEffect(() => {
-    const scanAllIps = async () => {
-      if (filteredIpList.length === 0) return
-
-      setIsScanning(true)
-      
-      try {
-        const ips = filteredIpList.map(record => record.ip)
-        
-        const response = await fetch('/api/ping/bulk', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ips })
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          for (const pingResult of result.data) {
-            updateIpRecord(pingResult.ip, {
-              lastStatus: pingResult.status,
-              lastLatencyMs: pingResult.latencyMs,
-              updatedAt: new Date().toISOString()
-            })
-            
-            await fetch('/api/ips', {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                ip: pingResult.ip,
-                lastStatus: pingResult.status,
-                lastLatencyMs: pingResult.latencyMs
-              })
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Background scan error:', error)
-      } finally {
-        setIsScanning(false)
-      }
-    }
-
-    // เริ่มสแกนทันทีเมื่อโหลดหน้า
-    if (filteredIpList.length > 0) {
-      scanAllIps()
-    }
-
-    // ตั้งเวลาสแกนทุก 10 นาที (600,000 ms)
-    const interval = setInterval(scanAllIps, 10 * 60 * 1000)
-
-    return () => clearInterval(interval)
-  }, [filteredIpList, updateIpRecord])
 
 
   const handleExportCSV = () => {
@@ -154,15 +91,6 @@ export default function SummaryBar() {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {isScanning && (
-                <>
-                  <Wifi className="h-4 w-4 animate-pulse" />
-                  กำลังสแกนอัตโนมัติ...
-                </>
-              )}
-            </div>
           </div>
         </CardContent>
       </Card>
