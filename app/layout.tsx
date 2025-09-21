@@ -11,10 +11,6 @@ const notoSansThai = Noto_Sans_Thai({
 export const metadata: Metadata = {
   title: 'IP Scanner',
   description: 'เครื่องมือสแกน IP Address และตรวจสอบสถานะ',
-  icons: {
-    icon: '/favicon.svg',
-    apple: '/favicon.svg',
-  }
 }
 
 export default function RootLayout({
