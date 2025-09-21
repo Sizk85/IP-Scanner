@@ -248,7 +248,7 @@ export default function IpTable() {
                 <TableHead className="w-[150px]">IP Address</TableHead>
                 <TableHead className="w-[200px]">สถานะ</TableHead>
                 <TableHead>Notes</TableHead>
-                <TableHead className="w-[120px]">อัปเดตล่าสุด</TableHead>
+                <TableHead className="w-[100px]">เวลา</TableHead>
                 <TableHead className="w-[150px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -310,7 +310,11 @@ export default function IpTable() {
                   
                   <TableCell className="text-sm text-muted-foreground">
                     {record.updatedAt 
-                      ? new Date(record.updatedAt).toLocaleString('th-TH')
+                      ? new Date(record.updatedAt).toLocaleTimeString('th-TH', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        })
                       : '-'
                     }
                   </TableCell>

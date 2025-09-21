@@ -6,21 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useIpScannerStore, useSummaryStats, useFilteredIpList } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Wifi, 
-  WifiOff, 
-  Clock, 
-  RotateCcw, 
-  Download, 
-  Upload,
+  Download,
   Search,
   Filter
 } from 'lucide-react'
 
 export default function SummaryBar() {
   const [isScanning, setIsScanning] = useState(false)
-  const [isClearingResults, setIsClearingResults] = useState(false)
   const stats = useSummaryStats()
   const filteredIpList = useFilteredIpList()
   const { 
@@ -33,119 +28,65 @@ export default function SummaryBar() {
   } = useIpScannerStore()
   const { toast } = useToast()
 
-  const handleScanAll = async () => {
-    if (filteredIpList.length === 0) {
-      toast({
-        title: "ไม่มีข้อมูล",
-        description: "ไม่มี IP ในรายการที่จะสแกน",
-        variant: "destructive"
-      })
-      return
-    }
+  // Background scanning ทุก 10 นาที
+  useEffect(() => {
+    const scanAllIps = async () => {
+      if (filteredIpList.length === 0) return
 
-    setIsScanning(true)
-    
-    try {
-      const ips = filteredIpList.map(record => record.ip)
+      setIsScanning(true)
       
-      // เรียก bulk ping API
-      const response = await fetch('/api/ping/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ips })
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        // อัปเดตผลลัพธ์ใน store และไฟล์
-        for (const pingResult of result.data) {
-          updateIpRecord(pingResult.ip, {
-            lastStatus: pingResult.status,
-            lastLatencyMs: pingResult.latencyMs,
-            updatedAt: new Date().toISOString()
-          })
-          
-          // อัปเดตใน database ด้วย
-          await fetch('/api/ips', {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ip: pingResult.ip,
-              lastStatus: pingResult.status,
-              lastLatencyMs: pingResult.latencyMs
-            })
-          })
-        }
-
-        toast({
-          title: "สำเร็จ",
-          description: `สแกนเสร็จสิ้น ${result.data.length} IP`
-        })
-      } else {
-        toast({
-          title: "ข้อผิดพลาด",
-          description: result.error || 'เกิดข้อผิดพลาดในการสแกน',
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
-      console.error('Error scanning:', error)
-      toast({
-        title: "ข้อผิดพลาด",
-        description: 'เกิดข้อผิดพลาดในการสแกน',
-        variant: "destructive"
-      })
-    } finally {
-      setIsScanning(false)
-    }
-  }
-
-  const handleClearResults = async () => {
-    setIsClearingResults(true)
-    
-    try {
-      // อัปเดตเฉพาะสถานะ ping ให้เป็น undefined
-      for (const record of filteredIpList) {
-        updateIpRecord(record.ip, {
-          lastStatus: undefined,
-          lastLatencyMs: undefined,
-          updatedAt: new Date().toISOString()
-        })
+      try {
+        const ips = filteredIpList.map(record => record.ip)
         
-        // อัปเดตใน database ด้วย
-        await fetch('/api/ips', {
-          method: 'PATCH',
+        const response = await fetch('/api/ping/bulk', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            ip: record.ip,
-            lastStatus: undefined,
-            lastLatencyMs: undefined
-          })
+          body: JSON.stringify({ ips })
         })
-      }
 
-      toast({
-        title: "สำเร็จ",
-        description: "เคลียร์ผลการสแกนแล้ว"
-      })
-    } catch (error) {
-      console.error('Error clearing results:', error)
-      toast({
-        title: "ข้อผิดพลาด",
-        description: 'เกิดข้อผิดพลาดในการเคลียร์ผล',
-        variant: "destructive"
-      })
-    } finally {
-      setIsClearingResults(false)
+        const result = await response.json()
+
+        if (result.success) {
+          for (const pingResult of result.data) {
+            updateIpRecord(pingResult.ip, {
+              lastStatus: pingResult.status,
+              lastLatencyMs: pingResult.latencyMs,
+              updatedAt: new Date().toISOString()
+            })
+            
+            await fetch('/api/ips', {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ip: pingResult.ip,
+                lastStatus: pingResult.status,
+                lastLatencyMs: pingResult.latencyMs
+              })
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Background scan error:', error)
+      } finally {
+        setIsScanning(false)
+      }
     }
-  }
+
+    // เริ่มสแกนทันทีเมื่อโหลดหน้า
+    if (filteredIpList.length > 0) {
+      scanAllIps()
+    }
+
+    // ตั้งเวลาสแกนทุก 10 นาที (600,000 ms)
+    const interval = setInterval(scanAllIps, 10 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [filteredIpList, updateIpRecord])
+
 
   const handleExportCSV = () => {
     const csvHeaders = ['ip', 'status', 'latencyMs', 'notes', 'updatedAt']
@@ -209,28 +150,19 @@ export default function SummaryBar() {
           </div>
           
           <div className="flex flex-wrap gap-2 mt-4">
-            <Button 
-              onClick={handleScanAll} 
-              disabled={isScanning}
-              className="flex-1 sm:flex-none"
-            >
-              <Wifi className="mr-2 h-4 w-4" />
-              {isScanning ? 'กำลังสแกน...' : 'Scan All'}
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={handleClearResults}
-              disabled={isClearingResults}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Clear Results
-            </Button>
-            
             <Button variant="outline" onClick={handleExportCSV}>
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
+            
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {isScanning && (
+                <>
+                  <Wifi className="h-4 w-4 animate-pulse" />
+                  กำลังสแกนอัตโนมัติ...
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
